@@ -24,9 +24,11 @@ learning_rate = 0.01
 
 X = tf.placeholder(tf.float32, shape=(None, n_inputs), name="X")
 y = tf.placeholder(tf.int64, shape=(None), name="y")
+training = tf.placeholder_with_default(False, shape=(), name='training')
 
 with tf.name_scope("dnn"):
-    hidden1 = tf.layers.dense(X, n_hidden1, activation=tf.nn.relu, name="hidden1")
+    bn1 = tf.layers.batch_normalization(X, training=training, momentum=0.9)
+    hidden1 = tf.layers.dense(bn1, n_hidden1, activation=tf.nn.relu, name="hidden1")
     hidden2 = tf.layers.dense(hidden1, n_hidden2, activation=tf.nn.relu, name="hidden2")
     logits = tf.layers.dense(hidden2, n_outputs, name="outputs")
 
@@ -73,6 +75,8 @@ best_loss = np.infty
 epochs_without_progress = 0
 max_epochs_without_progress = 50
 
+extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
 with tf.Session() as sess:
     if os.path.isfile(checkpoint_epoch_path):
         # if the checkpoint file exists, restore the model and load the epoch number
@@ -87,7 +91,7 @@ with tf.Session() as sess:
     for epoch in range(start_epoch, n_epochs):
         for iter in range(mnist.train.num_examples // batch_size ):
             X_batch, y_batch = mnist.train.next_batch(batch_size)
-            sess.run(training_op, feed_dict={X: X_batch, y: y_batch})
+            sess.run([training_op, extra_update_ops], feed_dict={training: True, X: X_batch, y: y_batch})
         accuracy_val, loss_val, accuracy_summary_str, loss_summary_str\
             = sess.run([accuracy, loss, accuracy_summary, loss_summary], feed_dict={X: X_valid, y: y_valid})
         file_writer.add_summary(accuracy_summary_str, epoch)
