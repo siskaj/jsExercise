@@ -7,7 +7,7 @@ mnist = input_data.read_data_sets("/tmp/data")
 from datetime import datetime
 
 def log_dir(prefix=""):
-    now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    now = datetime.now().strftime("%Y%m%d%H%M%S")
     root_logdir = "tf_logs"
     if prefix:
         prefix += "-"
@@ -25,12 +25,21 @@ learning_rate = 0.01
 X = tf.placeholder(tf.float32, shape=(None, n_inputs), name="X")
 y = tf.placeholder(tf.int64, shape=(None), name="y")
 training = tf.placeholder_with_default(False, shape=(), name='training')
+batch_norm_momentum = 0.9
+
+from functools import partial
+
 
 with tf.name_scope("dnn"):
-    bn1 = tf.layers.batch_normalization(X, training=training, momentum=0.9)
-    hidden1 = tf.layers.dense(bn1, n_hidden1, activation=tf.nn.relu, name="hidden1")
-    hidden2 = tf.layers.dense(hidden1, n_hidden2, activation=tf.nn.relu, name="hidden2")
-    logits = tf.layers.dense(hidden2, n_outputs, name="outputs")
+    he_init = tf.contrib.layers.variance_scaling_initializer()
+    my_batch_norm_layer = partial(tf.layers.batch_normalization, training=training, momentum=batch_norm_momentum)
+    my_dense_layer = partial(tf.layers.dense, kernel_initializer=he_init )
+
+    hidden1 = my_dense_layer(X, n_hidden1, name="hidden1")
+    bn1 = tf.nn.relu(my_batch_norm_layer(hidden1))
+    hidden2 = my_dense_layer(bn1, n_hidden2, name="hidden2")
+    bn2 = tf.nn.relu(my_batch_norm_layer(hidden2))
+    logits = tf.layers.dense(bn2, n_outputs, name="outputs")
 
 with tf.name_scope("loss"):
     xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
